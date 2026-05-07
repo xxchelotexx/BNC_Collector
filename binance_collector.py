@@ -117,6 +117,9 @@ def obtener_y_guardar_datos():
     
     resultados = []
     escenarios = [{"type": "BUY"}, {"type": "SELL"}]
+    
+    # Diccionario temporal para guardar los merchants por tipo de operación
+    merchants_por_tipo = {"BUY": [], "SELL": []}
 
     for escenario in escenarios:
         trade_type = escenario["type"]
@@ -133,7 +136,25 @@ def obtener_y_guardar_datos():
                 if response.status_code == 200:
                     data = response.json()
                     if data.get("success") and data.get("data"):
-                        items.extend(data["data"])
+                        batch = data["data"]
+                        items.extend(batch)
+                        
+                        # --- LÓGICA PARA MERCHANTS ---
+                        for item in batch:
+                            # Solo procesar si aún no tenemos 10 y es merchant
+                            if len(merchants_por_tipo[trade_type]) < 10:
+                                advertiser = item.get("advertiser", {})
+                                adv_data = item.get("adv", {})
+                                
+                                if advertiser.get("userType") == "merchant":
+                                    merchants_por_tipo[trade_type].append({
+                                        "nickName": advertiser.get("nickName"),
+                                        "price": adv_data.get("price"),
+                                        "tradableQuantity": adv_data.get("tradableQuantity"),
+                                        "minSingleTransAmount": adv_data.get("minSingleTransAmount"),
+                                        "maxSingleTransAmount": adv_data.get("maxSingleTransAmount"),
+                                        "advNo": adv_data.get("advNo") # Identificador del anuncio (opcional)
+                                    })
                     else: break
                 else: break
             except Exception as e:
@@ -145,14 +166,17 @@ def obtener_y_guardar_datos():
     # --- LA PARTE CRÍTICA: IGUALAR A BYBIT ---
     # Usamos la misma estructura que en tu código de Bybit
     documento = {
-        "timestamp": datetime.now(timezone.utc), # Cambiado de timestamp_utc a timestamp
-        "exchange": "binance",
-        "resultados": resultados
-    }
-    
+            "timestamp": datetime.now(timezone.utc),
+            "exchange": "binance",
+            "resultados": resultados,
+            # Nuevas listas solicitadas
+            "merchant_buy": merchants_por_tipo["BUY"],
+            "merchant_sell": merchants_por_tipo["SELL"]
+        }
+        
     try:
         collection.insert_one(documento)
-        print(f"✅ Datos de Binance guardados en MongoDB Atlas.")
+        print(f"✅ Datos de Binance guardados en MongoDB.")
     except Exception as e:
         print(f"❌ Error al insertar en Binance: {e}")
 
@@ -165,7 +189,7 @@ def worker():
     while True:
         ahora_bo = datetime.now(UTC_BOLIVIA)
         # Intervalo: 10s día, 60s noche (puedes ajustarlo a 30s como en Bybit)
-        intervalo = 10 if 6 <= ahora_bo.hour <= 23 else 60
+        intervalo = 1 if 6 <= ahora_bo.hour <= 23 else 60
 
         obtener_y_guardar_datos()
         time.sleep(intervalo)
