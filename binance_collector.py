@@ -189,7 +189,7 @@ def worker():
     while True:
         ahora_bo = datetime.now(UTC_BOLIVIA)
         # Intervalo: 10s día, 60s noche (puedes ajustarlo a 30s como en Bybit)
-        intervalo = 1 if 6 <= ahora_bo.hour <= 23 else 60
+        intervalo = 10 if 6 <= ahora_bo.hour <= 23 else 60
 
         obtener_y_guardar_datos()
         time.sleep(intervalo)
